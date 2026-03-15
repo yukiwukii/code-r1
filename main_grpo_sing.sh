@@ -6,13 +6,13 @@
 #PBS -l select=1:ncpus=128:ngpus=4
 #PBS -l walltime=01:00:00
 #PBS -N grpo-run-singularity
-module load miniforge3
-conda activate rl_cre
-module load singularity
+# module load miniforge3
+# conda activate rl_cre
+# module load singularity
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0
 
-cd /home/users/ntu/elim078/scratch/code-r1-yuki
+cd /home/ucloud/code-r1
 # The config is optimized for 8xH200
 set -x
 
@@ -71,7 +71,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \
-    actor_rollout_ref.actor.fsdp_config.optimizer_offlod=True \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
     actor_rollout_ref.rollout.log_prob_micro_batch_size=256 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.25 \
