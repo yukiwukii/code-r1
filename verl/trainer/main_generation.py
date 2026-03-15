@@ -90,16 +90,21 @@ def main(config):
 
         data = DataProto.from_dict(batch_dict)
         real_batch_size = data.batch['input_ids'].shape[0]
-        if real_batch_size % dp_size != 0:
-            dummy_data_size = dp_size - real_batch_size % dp_size
+        # Dispatch splits by world_size, so pad to world_size (not dp_size).
+        # When tp=1, world_size == dp_size so this is equivalent.
+        # When tp>1, dp_size = world_size/tp < world_size and padding to dp_size
+        # is insufficient, causing an unequal-chunk assertion in the dispatcher.
+        pad_to = wg.world_size
+        if real_batch_size % pad_to != 0:
+            dummy_data_size = pad_to - real_batch_size % pad_to
             dummy_data = data[:dummy_data_size]
             data = DataProto.concat([data, dummy_data])
             print(
-                f'dp_size {dp_size} is not divisible by real_batch_size {real_batch_size}, add {dummy_data_size} dummy data'
+                f'world_size {pad_to} is not divisible by real_batch_size {real_batch_size}, add {dummy_data_size} dummy data'
             )
 
         batch_size = data.batch['input_ids'].shape[0]
-        assert batch_size % dp_size == 0, f'batch_size {batch_size} is not divisible by dp_size {dp_size}'
+        assert batch_size % pad_to == 0, f'batch_size {batch_size} is not divisible by world_size {pad_to}'
 
         print(f'[{batch_idx+1}/{num_batch}] Start to generate.')
         # START TO GENERATE FOR n_samples TIMES
