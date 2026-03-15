@@ -1,23 +1,3 @@
-"""
-Offline pass@k evaluation for generated responses.
-
-Input: a parquet file produced by verl.trainer.main_generation
-       (contains original dataset columns + a 'responses' column
-        holding a list of decoded strings per problem).
-
-Usage:
-    python scripts/eval_pass_at_k.py \
-        --input  path/to/generated.parquet \
-        --ks     1 5 10 \
-        --workers 8 \
-        --timeout 120 \
-        --output results.json   # optional
-
-The pass@k metric uses the unbiased estimator from Chen et al. (HumanEval):
-    pass@k = 1 - C(n-c, k) / C(n, k)
-where n = samples per problem, c = number of correct samples.
-"""
-
 import argparse
 import json
 import time
@@ -28,23 +8,14 @@ import numpy as np
 import pandas as pd
 
 
-# ---------------------------------------------------------------------------
-# Pass@k estimator
-# ---------------------------------------------------------------------------
-
 def estimate_pass_at_k(n: int, c: int, k: int) -> float:
     """Unbiased pass@k estimator (Chen et al., 2021)."""
     if n < k:
         return float("nan")
     if n - c < k:
         return 1.0
-    # Use log-space product for numerical stability
     return float(1.0 - np.prod(1.0 - k / np.arange(n - c + 1, n + 1)))
 
-
-# ---------------------------------------------------------------------------
-# Scoring helpers
-# ---------------------------------------------------------------------------
 
 def _score_one(args, per_response_timeout: float) -> float:
     """Score a single response. Returns the raw reward score; > 0.0 is treated as a pass."""
@@ -98,10 +69,6 @@ def score_problem(row: pd.Series, ks: list[int], per_response_timeout: float, ex
         result[f"pass@{k}"] = estimate_pass_at_k(n, c, k)
     return result
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="Compute pass@k on a generated parquet file.")
