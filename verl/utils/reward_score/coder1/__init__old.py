@@ -5,7 +5,7 @@ import json
 import time
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from .ast_checker import detect_patterns
+
 import numpy as np
 
 from .utils import _ERROR_MSG_PREFIX
@@ -28,9 +28,6 @@ elif CODER1_EXEC == "ces":
 elif CODER1_EXEC == "kira":
     from .kira_exec import remote_code_exec_kira
     code_exec = remote_code_exec_kira
-elif CODER1_EXEC == "subprocess":
-    from .subprocess_exec import code_exec_subprocess
-    code_exec = code_exec_subprocess
 else:
     raise ValueError(f"Unknown CODER1_EXEC: {CODER1_EXEC}")
 
@@ -56,62 +53,18 @@ def try_extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
 
     return solution_str
 
-def try_extract_solution_ast(solution_str: str):
-    answer_pattern = r'<code>(.*?)</code>'
-    matches = list(re.finditer(answer_pattern, solution_str, re.DOTALL))
-
-    if not matches:
-        answer_pattern = r'<code>(.*)'
-        matches = list(re.finditer(answer_pattern, solution_str, re.DOTALL))
-
-    if not matches:
-        answer_pattern = r'<answer>(.*?)</answer>'
-    
-        matches = list(re.finditer(answer_pattern, solution_str, re.DOTALL))
-    
-    if not matches:
-        answer_pattern = r'<answer>(.*)'
-        matches = list(re.finditer(answer_pattern, solution_str, re.DOTALL))
-    
-    if matches:
-        final_answer = matches[-1].group(1).strip()
-        return final_answer
-
-    return solution_str
 
 CODE_PATTERN = re.compile(r'```(?:\w+)?\n(.*?)\n```', re.DOTALL)
-CODE_PATTERN_AST = re.compile(r'```(?:\w+)?\n(.*)', re.DOTALL)
+
 
 def extract_code_from_string(solution_str):
     solution_str = try_extract_solution(solution_str)
     code_blocks = CODE_PATTERN.findall(solution_str)
     return '\n'.join(code_blocks).strip()
 
-def extract_code_from_string_ast(solution_str):
-    solution_str = try_extract_solution_ast(solution_str)
-    
-    code_blocks = CODE_PATTERN.findall(solution_str)
-    if not code_blocks:
-        code_blocks = CODE_PATTERN_AST.findall(solution_str)
-    return '\n'.join(code_blocks).strip()
 
-def _compute_score(solution_str, ground_truth, constraints_list,extra_info, format_reward=0.1, answer_reward=1., technique_penalty=0.1):
+def _compute_score(solution_str, ground_truth, extra_info, format_reward=0.1, answer_reward=1.):
     reward_log = []
-    total_len=len(constraints_list)
-    if(total_len==0):
-        technique_penalty=0
-    else:
-        reward_log.append("TLEN IS NOT ZERO")
-        ast_code=extract_code_from_string_ast(solution_str)
-        techniques_list=detect_patterns(ast_code)
-        violated=0
-        for t in constraints_list:
-            if(techniques_list.get(t)):
-                violated=violated+1
-        technique_penalty=technique_penalty*(violated/len(constraints_list))
-    
-    reward_log.append("Technique penalty:")
-    reward_log.append(str(technique_penalty))
 
     # ground_truth is not code, but tests
     pass_fmt = validate_response_structure(solution_str)
@@ -121,7 +74,7 @@ def _compute_score(solution_str, ground_truth, constraints_list,extra_info, form
         reward_log.append("-" * 16 + "Bad format detected!" + "-" * 16)
         reward_log.append("-" * 16 + "Original Model Output" + "-" * 16)
         reward_log.append(solution_str)
-        return -answer_reward - format_reward - technique_penalty, "\n".join(reward_log)
+        return -answer_reward - format_reward, "\n".join(reward_log)
 
     reward_log.append("-" * 16 + "Extracted Code to Execute" + "-" * 16)
     ground_truth = json.loads(ground_truth)
@@ -144,7 +97,7 @@ def _compute_score(solution_str, ground_truth, constraints_list,extra_info, form
             reward_log.append(output[:_MAX_CHAR_DISPLAY])
             reward_log.append("-" * 16 + "Failed Prompt" + "-" * 16)
             reward_log.append(extra_info["prompt"].replace("\n\n", "\n"))
-            return format_reward - technique_penalty, "\n".join(reward_log)
+            return format_reward, "\n".join(reward_log)
     elif "inputs" in ground_truth and "outputs" in ground_truth:
         stdin_list: str = ground_truth["inputs"]
         stdout_list: str = ground_truth["outputs"]
@@ -166,7 +119,7 @@ def _compute_score(solution_str, ground_truth, constraints_list,extra_info, form
                         f"❌Actual: {output if output.startswith(_ERROR_MSG_PREFIX) else repr(output.strip())}")
                     reward_log.append("-" * 16 + "Failed Prompt" + "-" * 16)
                     reward_log.append(extra_info["prompt"].replace("\n\n", "\n"))
-                    return format_reward - technique_penalty, "\n".join(reward_log)
+                    return format_reward, "\n".join(reward_log)
     else:
         raise ValueError(
             f"Current supports for ground-truth are ['functional', 'inputs/outputs'] -- No idea what's: {ground_truth = }"
@@ -174,15 +127,14 @@ def _compute_score(solution_str, ground_truth, constraints_list,extra_info, form
 
     reward_log.append("+" * 16 + "Test Execution Passed! (Output)" + "+" * 16)
     reward_log.append(output)
-    return format_reward + answer_reward - technique_penalty, "\n".join(reward_log)
+    return format_reward + answer_reward, "\n".join(reward_log)
 
 
-def compute_score(solution_str, ground_truth, constraints_list, extra_info, format_reward=0.1, answer_reward=1.):
+def compute_score(solution_str, ground_truth, extra_info, format_reward=0.1, answer_reward=1.):
     if isinstance(extra_info, np.ndarray):
         extra_info = extra_info.item()
     score, reward_log = _compute_score(solution_str,
                                        ground_truth,
-                                       constraints_list,
                                        extra_info=extra_info,
                                        format_reward=format_reward,
                                        answer_reward=answer_reward)

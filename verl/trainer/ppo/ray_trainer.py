@@ -18,6 +18,7 @@ This trainer supports model-agonistic model initialization with huggingface
 
 import os
 import uuid
+import gc
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -198,6 +199,7 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         data.batch['returns'] = returns
     else:
         raise NotImplementedError
+    gc.collect()
     return data
 
 
@@ -885,6 +887,8 @@ class RayPPOTrainer(object):
             pprint(f'Initial validation metrics: {val_metrics}')
             logger.log(data=val_metrics, step=self.global_steps)
             if self.config.trainer.get('val_only', False):
+                del batch
+                gc.collect()
                 return
 
         # we start from step 1
@@ -1023,6 +1027,8 @@ class RayPPOTrainer(object):
 
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps)
+                del batch
+                gc.collect()
 
                 self.global_steps += 1
 

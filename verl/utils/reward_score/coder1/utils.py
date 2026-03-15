@@ -1,7 +1,7 @@
 import requests
 
 _ERROR_MSG_PREFIX = "Failed to execute program: "
-_DEFAULT_TIMEOUT_SECONDS = 30
+_DEFAULT_TIMEOUT_SECONDS = 120
 
 
 def check_executor_alive(executor):

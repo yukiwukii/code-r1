@@ -2,9 +2,13 @@ import subprocess, tempfile
 from pathlib import Path
 from .utils import _ERROR_MSG_PREFIX, _DEFAULT_TIMEOUT_SECONDS
 
-IMAGE = "/home/users/ntu/elim078/scratch/code-r1/scipy.sif" 
+IMAGE = "/home/users/ntu/elim078/scratch/code-r1-yuki/scipy.sif" 
 
 def code_exec_singularity(code, stdin: str = None, timeout=_DEFAULT_TIMEOUT_SECONDS):
+    # memory_limit_prefix = "import resource\nresource.setrlimit(resource.RLIMIT_AS, (4 * 1024**3, 4 * 1024**3))\n"
+    memory_limit_prefix = "import os\nos.environ['OPENBLAS_NUM_THREADS'] = '1'\nos.environ['OMP_NUM_THREADS'] = '1'\nos.environ['MKL_NUM_THREADS'] = '1'\nimport resource\nresource.setrlimit(resource.RLIMIT_AS, (4 * 1024**3, 4 * 1024**3))\n"
+
+    code = memory_limit_prefix + code
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         script = td / "script.py"

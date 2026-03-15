@@ -24,7 +24,7 @@ from verl import DataProto
 from verl.utils.reward_score import _default_compute_score
 
 
-async def single_compute_score(evaluation_func, completion, reference, task, extra_info, executor, timeout=300):
+async def single_compute_score(evaluation_func, completion, reference, task, constraints_list,extra_info, executor, timeout=300):
     loop = asyncio.get_running_loop()
     try:
         # Ensure process_completion is called properly
@@ -32,7 +32,7 @@ async def single_compute_score(evaluation_func, completion, reference, task, ext
             asyncio.wait_for(
                 loop.run_in_executor(
                     executor,
-                    partial(evaluation_func, task, completion, reference, extra_info)  # Ensure synchronous
+                    partial(evaluation_func, task, completion, reference, constraints_list,extra_info)  # Ensure synchronous
                 ),
                 timeout=timeout)
         ]
@@ -49,6 +49,7 @@ async def parallel_compute_score_async(evaluation_func,
                                        completions,
                                        references,
                                        tasks,
+                                       constraints_list,
                                        extra_infos=None,
                                        num_processes=64):
     scores = []
@@ -59,10 +60,11 @@ async def parallel_compute_score_async(evaluation_func,
                                  completion,
                                  reference,
                                  task,
+                                 constraints_list=constraints_indiv,
                                  extra_info=extra_info,
                                  executor=executor,
                                  timeout=600)
-            for completion, reference, task, extra_info in zip(completions, references, tasks, extra_infos)
+            for completion, reference, task, constraints_indiv,extra_info in zip(completions, references, tasks, constraints_list,extra_infos)
         ]
         # to prevent very occasional starvation caused by some anomalous programs ( like infinite loop ), the exceptions in async programs will instantly halt the evaluation, and all summoned processes will be killed.
         results = await asyncio.gather(*tasks_async, return_exceptions=False)
@@ -118,10 +120,10 @@ class PrimeRewardManager:
         sequences_strs = self.tokenizer.batch_decode(response_ids, skip_special_tokens=True)
         ground_truths = [data_item.non_tensor_batch['reward_model']['ground_truth'] for data_item in data]
         data_sources = data.non_tensor_batch['data_source']
+        constraints = data.non_tensor_batch['disallowed_constraint']
         extra_infos = [data_item.non_tensor_batch.get('extra_info', None) for data_item in data]
 
         num_processes = max(cpu_count(), 1)
-
         print(f"Start to compute rewards for {len(sequences_strs)} samples over {num_processes} processes.")
         assert len(sequences_strs) == len(ground_truths) == len(data_sources)
         try:
@@ -130,6 +132,7 @@ class PrimeRewardManager:
                                              sequences_strs,
                                              ground_truths,
                                              data_sources,
+                                             constraints_list=constraints,
                                              extra_infos=extra_infos,
                                              num_processes=num_processes))
         except asyncio.TimeoutError as e:

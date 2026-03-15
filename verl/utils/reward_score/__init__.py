@@ -14,7 +14,7 @@
 # from . import gsm8k, math, prime_math, prime_code
 
 
-def _default_compute_score(data_source, solution_str, ground_truth, extra_info=None):
+def _default_compute_score(data_source, solution_str, ground_truth, constraints_list,extra_info=None):
     if data_source == 'openai/gsm8k':
         from . import gsm8k
         res = gsm8k.compute_score(solution_str, ground_truth)
@@ -32,7 +32,7 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
         res = prime_code.compute_score(solution_str, ground_truth, continuous=True)
     elif data_source in ['code']:
         from . import coder1
-        res = coder1.compute_score(solution_str, ground_truth, extra_info=extra_info)
+        res = coder1.compute_score(solution_str, ground_truth, constraints_list=constraints_list,extra_info=extra_info)
     elif data_source in ['hiyouga/geometry3k']:
         from . import geo3k
         res = geo3k.compute_score(solution_str, ground_truth)
