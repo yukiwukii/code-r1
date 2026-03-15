@@ -1,33 +1,26 @@
 #!/bin/bash
-# Evaluate a trained model with pass@k on the test set.
-# Runs generation then pass@k evaluation.
-#
-# PBS example:
-#   #PBS -q normal
-#   #PBS -l select=1:ncpus=128:ngpus=4
-#   #PBS -l walltime=02:00:00
 
-# ─── CONFIG ────────────────────────────────────────────────────────────────────
+#PBS -q normal
+#PBS -j oe
+#PBS -l select=1:ncpus=128:ngpus=4
+#PBS -l walltime=3:00:00
+#PBS -N pass-k-eval
 
-# Model to evaluate (your trained checkpoint, or base model for baseline)
-MODEL_PATH=./models/code-r1-12k-grpo/global_step_64   # adjust to your checkpoint
+module load miniforge3
+conda activate rl_cre
+module load singularity
 
-# Test data (prompt key must be 'prompt')
-TEST_DATA=data/code-r1-12k/test_top5_dp.parquet
+cd /home/users/ntu/elim078/scratch/code-r1-yuki
 
-# Where to save generated responses
-GEN_OUTPUT=/tmp/eval_generated.parquet
+# MAIN CONFIG 
+MODEL_PATH=models/code-r1-12k-grpo/global_step_6 # Model to evaluate
+TEST_DATA=data/code-r1-12k/test_top5_dp.parquet # Test data (prompt key must be 'prompt')
+GEN_OUTPUT=data/eval_generated.parquet # Save generated output
+N_SAMPLES=16 # No. of rollout
+KS="1 5 10 16" # k values to report
+RESULTS_JSON=data/eval_results.json # Final report output
 
-# Number of samples to generate per problem (higher → better pass@k coverage)
-N_SAMPLES=16
-
-# k values to report
-KS="1 5 10 16"
-
-# Where to save final JSON results
-RESULTS_JSON=./eval_results.json
-
-# Generation hyperparams
+# GENERATION HYPERPARAMS
 TEMPERATURE=1.0
 TOP_P=0.95
 TOP_K=-1
@@ -35,11 +28,11 @@ PROMPT_LEN=2048
 RESPONSE_LEN=800
 GPU_MEM_UTIL=0.8
 
-# Evaluation
+# PARALLEL EVAL (SANDBOX STUFF)
 EVAL_WORKERS=8          # parallel threads for scoring
 EVAL_TIMEOUT=120        # seconds per response before giving up
 
-# ─── SINGULARITY / ENV ────────────────────────────────────────────────────────
+# GPU SETUPS
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export CODER1_EXEC=singularity
 export VLLM_ATTENTION_BACKEND=XFORMERS
@@ -49,9 +42,8 @@ GPUS_PER_NODE=$(echo "$CUDA_VISIBLE_DEVICES" | awk -F',' '{print NF}')
 set -euo pipefail
 set -x
 
-# ─── STEP 1: GENERATION ───────────────────────────────────────────────────────
 
-echo "=== Step 1: Generating ${N_SAMPLES} responses per problem ==="
+echo "Step 1: Generating ${N_SAMPLES} responses per problem"
 python3 -m verl.trainer.main_generation \
     trainer.nnodes=1 \
     trainer.n_gpus_per_node=$GPUS_PER_NODE \
@@ -70,11 +62,10 @@ python3 -m verl.trainer.main_generation \
     rollout.tensor_model_parallel_size=1 \
     rollout.name=vllm \
     2>&1 | tee eval_generation.log
-echo "=== Generation done. Output: $GEN_OUTPUT ==="
+echo "Generation done. Output: $GEN_OUTPUT"
 
-# ─── STEP 2: PASS@K EVALUATION ────────────────────────────────────────────────
 
-echo "=== Step 2: Computing pass@k ==="
+echo "Step 2: Computing pass@k"
 python3 scripts/eval_pass_at_k.py \
     --input   "$GEN_OUTPUT" \
     --ks      $KS \
@@ -83,4 +74,4 @@ python3 scripts/eval_pass_at_k.py \
     --output  "$RESULTS_JSON" \
     2>&1 | tee eval_scoring.log
 
-echo "=== Evaluation complete. Results: $RESULTS_JSON ==="
+echo "Evaluation complete. Results: $RESULTS_JSON"

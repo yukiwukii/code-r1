@@ -6,13 +6,14 @@
 #PBS -l select=1:ncpus=128:ngpus=4
 #PBS -l walltime=01:00:00
 #PBS -N grpo-run-singularity
-# module load miniforge3
-# conda activate rl_cre
-# module load singularity
 
-export CUDA_VISIBLE_DEVICES=0
+module load miniforge3
+conda activate rl_cre
+module load singularity
 
-cd /home/ucloud/code-r1
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+
+cd /home/users/ntu/elim078/scratch/code-r1-yuki
 # The config is optimized for 8xH200
 set -x
 
