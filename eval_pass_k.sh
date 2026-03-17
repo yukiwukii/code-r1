@@ -26,7 +26,7 @@ TOP_P=0.95
 TOP_K=-1
 PROMPT_LEN=2048
 RESPONSE_LEN=800
-GPU_MEM_UTIL=0.5
+GPU_MEM_UTIL=0.25
 
 # PARALLEL EVAL (SANDBOX STUFF)
 EVAL_WORKERS=8          # parallel threads for scoring
@@ -71,7 +71,7 @@ echo "Generation done. Output: $GEN_OUTPUT"
 
 
 echo "Step 2: Computing pass@k"
-python3 scripts/eval_pass_at_k.py \
+python3 scripts/eval_pass_k.py \
     --input   "$GEN_OUTPUT" \
     --ks      $KS \
     --workers $EVAL_WORKERS \
